@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"os"
 	"os/exec"
@@ -60,11 +61,11 @@ func runDiff(cmd *cobra.Command, args []string) error {
 }
 
 func truncate(s string) string {
-	s = strings.ReplaceAll(s, "\n", "\\n")
-	if utf8.RuneCountInString(s) <= truncateAt {
-		return s
+	if strings.ContainsRune(s, '\n') || utf8.RuneCountInString(s) > truncateAt {
+		h := sha256.Sum256([]byte(s))
+		return fmt.Sprintf("sha256:%x [%dB]", h[:4], len(s))
 	}
-	return string([]rune(s)[:truncateAt]) + fmt.Sprintf("… [%dB]", len(s))
+	return s
 }
 
 func printTable(results []diff.DiffResult) {

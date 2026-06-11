@@ -39,11 +39,23 @@ func runDiff(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--context-2 is required")
 	}
 
-	c1, err := client.New(context1)
+	ctx1, err := client.ResolveContextName(context1)
 	if err != nil {
 		return fmt.Errorf("context-1: %w", err)
 	}
-	c2, err := client.New(context2)
+	ctx2, err := client.ResolveContextName(context2)
+	if err != nil {
+		return fmt.Errorf("context-2: %w", err)
+	}
+	if ctx1 == ctx2 {
+		return fmt.Errorf("context-1 and context-2 both resolve to %q — must be different contexts", ctx1)
+	}
+
+	c1, err := client.New(ctx1)
+	if err != nil {
+		return fmt.Errorf("context-1: %w", err)
+	}
+	c2, err := client.New(ctx2)
 	if err != nil {
 		return fmt.Errorf("context-2: %w", err)
 	}

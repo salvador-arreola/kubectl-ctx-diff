@@ -60,6 +60,13 @@ func runDiff(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("context-2: %w", err)
 	}
 
+	if err := client.ValidateNamespace(cmd.Context(), c1, namespace); err != nil {
+		return fmt.Errorf("context-1: %w", err)
+	}
+	if err := client.ValidateNamespace(cmd.Context(), c2, namespace); err != nil {
+		return fmt.Errorf("context-2: %w", err)
+	}
+
 	results, err := diff.ConfigMaps(cmd.Context(), c1, c2, namespace)
 	if err != nil {
 		return err

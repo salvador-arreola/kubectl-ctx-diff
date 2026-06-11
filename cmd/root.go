@@ -13,8 +13,10 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "kubectl-env",
-	Short: "Compare Kubernetes environments across contexts",
+	Use:          "kubectl-env",
+	Short:        "Compare Kubernetes environments across contexts",
+	SilenceUsage: true,
+	SilenceErrors: true,
 }
 
 func Execute() {

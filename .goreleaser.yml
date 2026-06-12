@@ -12,7 +12,7 @@ builds:
     env:
       - CGO_ENABLED=0
     ldflags:
-      - -s -w
+      - -s -w -X github.com/salvador-arreola/kubectl-ctx-diff/cmd.version={{.Version}}
     goos:
       - linux
       - darwin

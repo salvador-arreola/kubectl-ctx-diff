@@ -13,12 +13,14 @@ var (
 	context1       string
 	context2       string
 	kubeconfigPath string
+	version        = "dev" // overridden at build time via -ldflags "-X ...cmd.version=vX.Y.Z"
 )
 
 var rootCmd = &cobra.Command{
 	Short:         "Compare Kubernetes environments across contexts",
 	SilenceUsage:  true,
 	SilenceErrors: true,
+	Version:       version,
 }
 
 func Execute() {
@@ -30,11 +32,12 @@ func Execute() {
 	}
 	rootCmd.Use = name
 
-	// Cobra derives CommandPath() from the first word of Use, which breaks
-	// when Use contains spaces. Patch the template to use {{.Use}} directly.
+	// Cobra derives CommandPath()/Name() from the first word of Use, which
+	// breaks when Use contains spaces. Patch both templates to use {{.Use}}.
 	tmpl := rootCmd.UsageTemplate()
 	tmpl = strings.ReplaceAll(tmpl, "{{.CommandPath}}", "{{.Use}}")
 	rootCmd.SetUsageTemplate(tmpl)
+	rootCmd.SetVersionTemplate("{{.Use}} version {{.Version}}\n")
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## About
 
-`kubectl-env` is a kubectl plugin that diffs Kubernetes resources (ConfigMaps, Secrets, env vars, resource limits) between two kubeconfig contexts or namespaces. Binary named `kubectl-env` makes it runnable as `kubectl env`.
+`kubectl-ctx-diff` is a kubectl plugin that diffs Kubernetes resources (ConfigMaps, Secrets, env vars, resource limits) between two kubeconfig contexts or namespaces. Binary named `kubectl-ctx-diff` makes it runnable as `kubectl env`.
 
 ## Commands
 
@@ -39,4 +39,4 @@ pkg/diff/configmap.go → ConfigMaps(ctx, c1, c2, ns) → []DiffResult
 
 ## Module
 
-`github.com/salvador-arreola/kubectl-env` — Go 1.26, k8s.io/client-go v0.36.x.
+`github.com/salvador-arreola/kubectl-ctx-diff` — Go 1.26, k8s.io/client-go v0.36.x.

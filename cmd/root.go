@@ -13,7 +13,7 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:          "kubectl-env",
+	Use:          "kubectl-ctx-diff",
 	Short:        "Compare Kubernetes environments across contexts",
 	SilenceUsage: true,
 	SilenceErrors: true,

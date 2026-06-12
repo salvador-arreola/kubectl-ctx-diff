@@ -1,4 +1,4 @@
-module github.com/salvador-arreola/kubectl-env
+module github.com/salvador-arreola/kubectl-ctx-diff
 
 go 1.26.2
 

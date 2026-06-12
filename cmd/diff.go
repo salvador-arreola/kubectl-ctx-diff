@@ -12,8 +12,8 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
-	"github.com/salvador-arreola/kubectl-env/pkg/client"
-	"github.com/salvador-arreola/kubectl-env/pkg/diff"
+	"github.com/salvador-arreola/kubectl-ctx-diff/pkg/client"
+	"github.com/salvador-arreola/kubectl-ctx-diff/pkg/diff"
 )
 
 const truncateAt = 40
@@ -23,6 +23,7 @@ var (
 	namespace2   string
 	fullDiff     bool
 	outputFormat string
+	filter       []string
 )
 
 var diffCmd = &cobra.Command{
@@ -37,6 +38,7 @@ func init() {
 	diffCmd.Flags().StringVar(&namespace2, "namespace-2", "", "namespace for context-2 (default: same as --namespace-1)")
 	diffCmd.Flags().BoolVar(&fullDiff, "full", false, "show full values via $DIFFTOOL (default: diff)")
 	diffCmd.Flags().StringVarP(&outputFormat, "output", "o", "table", "output format: table or json")
+	diffCmd.Flags().StringSliceVarP(&filter, "filter", "f", nil, "resource types to include: configmaps,secrets,deployments (default: all)")
 }
 
 func runDiff(cmd *cobra.Command, args []string) error {
@@ -76,31 +78,38 @@ func runDiff(cmd *cobra.Command, args []string) error {
 	}
 
 	ctx := cmd.Context()
+	want := buildFilter(filter)
 	var results []diff.DiffResult
 
-	cms, err := diff.ConfigMaps(ctx, c1, c2, namespace1, namespace2)
-	if err != nil {
-		return fmt.Errorf("configmaps: %w", err)
+	if want("configmaps") {
+		cms, err := diff.ConfigMaps(ctx, c1, c2, namespace1, namespace2)
+		if err != nil {
+			return fmt.Errorf("configmaps: %w", err)
+		}
+		results = append(results, cms...)
 	}
-	results = append(results, cms...)
 
-	secrets, err := diff.Secrets(ctx, c1, c2, namespace1, namespace2)
-	if err != nil {
-		return fmt.Errorf("secrets: %w", err)
+	if want("secrets") {
+		secrets, err := diff.Secrets(ctx, c1, c2, namespace1, namespace2)
+		if err != nil {
+			return fmt.Errorf("secrets: %w", err)
+		}
+		results = append(results, secrets...)
 	}
-	results = append(results, secrets...)
 
-	depResources, err := diff.DeploymentResources(ctx, c1, c2, namespace1, namespace2)
-	if err != nil {
-		return fmt.Errorf("deployment resources: %w", err)
-	}
-	results = append(results, depResources...)
+	if want("deployments") {
+		depResources, err := diff.DeploymentResources(ctx, c1, c2, namespace1, namespace2)
+		if err != nil {
+			return fmt.Errorf("deployment resources: %w", err)
+		}
+		results = append(results, depResources...)
 
-	depEnvVars, err := diff.DeploymentEnvVars(ctx, c1, c2, namespace1, namespace2)
-	if err != nil {
-		return fmt.Errorf("deployment env vars: %w", err)
+		depEnvVars, err := diff.DeploymentEnvVars(ctx, c1, c2, namespace1, namespace2)
+		if err != nil {
+			return fmt.Errorf("deployment env vars: %w", err)
+		}
+		results = append(results, depEnvVars...)
 	}
-	results = append(results, depEnvVars...)
 
 	switch outputFormat {
 	case "json":
@@ -114,6 +123,19 @@ func runDiff(cmd *cobra.Command, args []string) error {
 	default:
 		return fmt.Errorf("unknown output format %q — use table or json", outputFormat)
 	}
+}
+
+// buildFilter returns a function that reports whether a resource type should run.
+// Empty filter means run all.
+func buildFilter(f []string) func(string) bool {
+	if len(f) == 0 {
+		return func(string) bool { return true }
+	}
+	set := make(map[string]bool, len(f))
+	for _, v := range f {
+		set[strings.ToLower(v)] = true
+	}
+	return func(kind string) bool { return set[strings.ToLower(kind)] }
 }
 
 func truncate(s string) string {

@@ -1,0 +1,58 @@
+apiVersion: krew.googlecontainertools.github.com/v1alpha2
+kind: Plugin
+metadata:
+  name: ctx-diff
+spec:
+  version: v0.1.0
+  homepage: https://github.com/salvador-arreola/kubectl-ctx-diff
+  shortDescription: Diff k8s resources between two contexts
+  description: |
+    Compare Kubernetes environments across kubeconfig contexts.
+    Diffs ConfigMaps, Secrets (keys only), and Deployment resource
+    limits and env vars — with colored table or JSON output.
+
+    Usage:
+      kubectl ctx-diff diff --context-2 prod -n my-namespace
+      kubectl ctx-diff diff --context-2 prod --filter configmaps,secrets
+      kubectl ctx-diff diff --context-2 prod -o json
+
+  platforms:
+    - selector:
+        matchLabels:
+          os: linux
+          arch: amd64
+      uri: https://github.com/salvador-arreola/kubectl-ctx-diff/releases/download/v0.1.0/kubectl-ctx-diff_linux_amd64.tar.gz
+      sha256: "REPLACE_WITH_SHA256"
+      bin: kubectl-ctx-diff
+
+    - selector:
+        matchLabels:
+          os: linux
+          arch: arm64
+      uri: https://github.com/salvador-arreola/kubectl-ctx-diff/releases/download/v0.1.0/kubectl-ctx-diff_linux_arm64.tar.gz
+      sha256: "REPLACE_WITH_SHA256"
+      bin: kubectl-ctx-diff
+
+    - selector:
+        matchLabels:
+          os: darwin
+          arch: amd64
+      uri: https://github.com/salvador-arreola/kubectl-ctx-diff/releases/download/v0.1.0/kubectl-ctx-diff_darwin_amd64.tar.gz
+      sha256: "REPLACE_WITH_SHA256"
+      bin: kubectl-ctx-diff
+
+    - selector:
+        matchLabels:
+          os: darwin
+          arch: arm64
+      uri: https://github.com/salvador-arreola/kubectl-ctx-diff/releases/download/v0.1.0/kubectl-ctx-diff_darwin_arm64.tar.gz
+      sha256: "REPLACE_WITH_SHA256"
+      bin: kubectl-ctx-diff
+
+    - selector:
+        matchLabels:
+          os: windows
+          arch: amd64
+      uri: https://github.com/salvador-arreola/kubectl-ctx-diff/releases/download/v0.1.0/kubectl-ctx-diff_windows_amd64.zip
+      sha256: "REPLACE_WITH_SHA256"
+      bin: kubectl-ctx-diff.exe

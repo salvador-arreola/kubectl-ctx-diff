@@ -58,7 +58,7 @@ func runDiff(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("context-2: %w", err)
 	}
 	if ctx1 == ctx2 && namespace1 == namespace2 {
-		return fmt.Errorf("context-1 and context-2 resolve to the same context %q and namespace %q — must differ", ctx1, namespace1)
+		return fmt.Errorf("context-1 and context-2 resolve to the same context %q and namespace %q: must differ", ctx1, namespace1)
 	}
 
 	c1, err := client.New(kubeconfigPath, ctx1)
@@ -121,7 +121,7 @@ func runDiff(cmd *cobra.Command, args []string) error {
 		printTable(results)
 		return nil
 	default:
-		return fmt.Errorf("unknown output format %q — use table or json", outputFormat)
+		return fmt.Errorf("unknown output format %q: use table or json", outputFormat)
 	}
 }
 
@@ -242,7 +242,7 @@ func printFull(results []diff.DiffResult) error {
 			c := exec.Command(tool, f1, f2)
 			c.Stdout = os.Stdout
 			c.Stderr = os.Stderr
-			// diff exits 1 when files differ — that's expected, not an error
+			// diff exits 1 when files differ; that's expected, not an error
 			_ = c.Run()
 		}
 	}

@@ -1,6 +1,6 @@
 # Tasks
 
-## Phase 1 — MVP ✓
+## Phase 1 - MVP ✓
 - [x] cobra root command + --context-1 / --context-2 flags
 - [x] fetch and diff ConfigMaps between two namespaces
 - [x] fetch and diff Secrets (show keys only, never values)

@@ -27,7 +27,7 @@ pkg/diff/configmap.go → ConfigMaps(ctx, c1, c2, ns) → []DiffResult
 
 **Data flow:** `cmd/diff` calls `client.New()` twice, passes both `kubernetes.Interface` values to `diff.ConfigMaps`, renders `[]DiffResult` via `text/tabwriter` + `fatih/color`.
 
-**`pkg/diff`** takes `kubernetes.Interface` — decoupled from `pkg/client` so tests use `k8s.io/client-go/kubernetes/fake` without real clusters.
+**`pkg/diff`** takes `kubernetes.Interface`, decoupled from `pkg/client` so tests use `k8s.io/client-go/kubernetes/fake` without real clusters.
 
 **`DiffResult`** holds `[]KeyDiff{Key, Value1, Value2, Status}`. Status constants: `equal`, `modified`, `only-in-1`, `only-in-2`.
 
@@ -39,4 +39,4 @@ pkg/diff/configmap.go → ConfigMaps(ctx, c1, c2, ns) → []DiffResult
 
 ## Module
 
-`github.com/salvador-arreola/kubectl-ctx-diff` — Go 1.26, k8s.io/client-go v0.36.x.
+`github.com/salvador-arreola/kubectl-ctx-diff`. Go 1.26, k8s.io/client-go v0.36.x.

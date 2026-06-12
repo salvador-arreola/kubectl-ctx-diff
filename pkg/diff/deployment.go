@@ -79,7 +79,7 @@ func extractEnvVars(containers []corev1.Container) map[string]string {
 	m := make(map[string]string)
 	for _, c := range containers {
 		for _, e := range c.Env {
-			if e.Value != "" { // skip valueFrom refs — can't compare them meaningfully
+			if e.Value != "" { // skip valueFrom refs; can't compare them meaningfully
 				m[fmt.Sprintf("%s.%s", c.Name, e.Name)] = e.Value
 			}
 		}

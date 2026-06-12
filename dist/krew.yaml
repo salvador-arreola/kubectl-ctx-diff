@@ -9,7 +9,7 @@ spec:
   description: |
     Compare Kubernetes environments across kubeconfig contexts.
     Diffs ConfigMaps, Secrets (keys only), and Deployment resource
-    limits and env vars — with colored table or JSON output.
+    limits and env vars, with colored table or JSON output.
 
     Usage:
       kubectl ctx-diff diff --context-2 prod -n my-namespace

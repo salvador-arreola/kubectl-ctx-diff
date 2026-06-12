@@ -23,18 +23,19 @@ type KeyDiff struct {
 }
 
 type DiffResult struct {
-	Name      string
-	Namespace string
-	Keys      []KeyDiff
+	Name       string
+	Namespace1 string
+	Namespace2 string
+	Keys       []KeyDiff
 }
 
-// ConfigMaps fetches ConfigMaps from both clients in namespace and diffs them key by key.
-func ConfigMaps(ctx context.Context, client1, client2 kubernetes.Interface, namespace string) ([]DiffResult, error) {
-	list1, err := client1.CoreV1().ConfigMaps(namespace).List(ctx, metav1.ListOptions{})
+// ConfigMaps fetches ConfigMaps from both clients in their respective namespaces and diffs them key by key.
+func ConfigMaps(ctx context.Context, client1, client2 kubernetes.Interface, namespace1, namespace2 string) ([]DiffResult, error) {
+	list1, err := client1.CoreV1().ConfigMaps(namespace1).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
-	list2, err := client2.CoreV1().ConfigMaps(namespace).List(ctx, metav1.ListOptions{})
+	list2, err := client2.CoreV1().ConfigMaps(namespace2).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -47,13 +48,13 @@ func ConfigMaps(ctx context.Context, client1, client2 kubernetes.Interface, name
 	var results []DiffResult
 
 	for _, cm := range list1.Items {
-		results = append(results, diffData(cm.Name, namespace, cm.Data, index2[cm.Name]))
+		results = append(results, diffData(cm.Name, namespace1, namespace2, cm.Data, index2[cm.Name]))
 		delete(index2, cm.Name)
 	}
 
 	// ConfigMaps present only in context-2
 	for name, data := range index2 {
-		results = append(results, diffData(name, namespace, nil, data))
+		results = append(results, diffData(name, namespace1, namespace2, nil, data))
 	}
 
 	sort.Slice(results, func(i, j int) bool {
@@ -63,7 +64,7 @@ func ConfigMaps(ctx context.Context, client1, client2 kubernetes.Interface, name
 	return results, nil
 }
 
-func diffData(name, namespace string, data1, data2 map[string]string) DiffResult {
+func diffData(name, namespace1, namespace2 string, data1, data2 map[string]string) DiffResult {
 	seen := make(map[string]bool)
 	var keys []KeyDiff
 
@@ -90,5 +91,5 @@ func diffData(name, namespace string, data1, data2 map[string]string) DiffResult
 		return keys[i].Key < keys[j].Key
 	})
 
-	return DiffResult{Name: name, Namespace: namespace, Keys: keys}
+	return DiffResult{Name: name, Namespace1: namespace1, Namespace2: namespace2, Keys: keys}
 }

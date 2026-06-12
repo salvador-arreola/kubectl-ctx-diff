@@ -18,8 +18,9 @@ import (
 const truncateAt = 40
 
 var (
-	namespace string
-	fullDiff  bool
+	namespace1 string
+	namespace2 string
+	fullDiff   bool
 )
 
 var diffCmd = &cobra.Command{
@@ -30,13 +31,17 @@ var diffCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(diffCmd)
-	diffCmd.Flags().StringVarP(&namespace, "namespace", "n", "default", "namespace to compare")
+	diffCmd.Flags().StringVarP(&namespace1, "namespace-1", "n", "default", "namespace for context-1")
+	diffCmd.Flags().StringVar(&namespace2, "namespace-2", "", "namespace for context-2 (default: same as --namespace-1)")
 	diffCmd.Flags().BoolVar(&fullDiff, "full", false, "show full values via $DIFFTOOL (default: diff)")
 }
 
 func runDiff(cmd *cobra.Command, args []string) error {
 	if context2 == "" {
 		return fmt.Errorf("--context-2 is required")
+	}
+	if namespace2 == "" {
+		namespace2 = namespace1
 	}
 
 	ctx1, err := client.ResolveContextName(context1)
@@ -47,8 +52,8 @@ func runDiff(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("context-2: %w", err)
 	}
-	if ctx1 == ctx2 {
-		return fmt.Errorf("context-1 and context-2 both resolve to %q — must be different contexts", ctx1)
+	if ctx1 == ctx2 && namespace1 == namespace2 {
+		return fmt.Errorf("context-1 and context-2 resolve to the same context %q and namespace %q — must differ", ctx1, namespace1)
 	}
 
 	c1, err := client.New(ctx1)
@@ -60,14 +65,14 @@ func runDiff(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("context-2: %w", err)
 	}
 
-	if err := client.ValidateNamespace(cmd.Context(), c1, namespace); err != nil {
+	if err := client.ValidateNamespace(cmd.Context(), c1, namespace1); err != nil {
 		return fmt.Errorf("context-1: %w", err)
 	}
-	if err := client.ValidateNamespace(cmd.Context(), c2, namespace); err != nil {
+	if err := client.ValidateNamespace(cmd.Context(), c2, namespace2); err != nil {
 		return fmt.Errorf("context-2: %w", err)
 	}
 
-	results, err := diff.ConfigMaps(cmd.Context(), c1, c2, namespace)
+	results, err := diff.ConfigMaps(cmd.Context(), c1, c2, namespace1, namespace2)
 	if err != nil {
 		return err
 	}
@@ -85,6 +90,13 @@ func truncate(s string) string {
 		return fmt.Sprintf("sha256:%x [%dB]", h[:4], len(s))
 	}
 	return s
+}
+
+func cmLabel(r diff.DiffResult) string {
+	if r.Namespace1 == r.Namespace2 {
+		return r.Namespace1 + "/" + r.Name
+	}
+	return r.Namespace1 + "/" + r.Name + " → " + r.Namespace2 + "/" + r.Name
 }
 
 func printTable(results []diff.DiffResult) {
@@ -114,8 +126,9 @@ func printTable(results []diff.DiffResult) {
 			case diff.StatusModified:
 				status = modified("modified")
 			}
-			fmt.Fprintf(w, "%s/%s\t%s\t%s\t%s\t%s\n",
-				r.Namespace, r.Name, k.Key, status,
+			cm := cmLabel(r)
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
+				cm, k.Key, status,
 				truncate(k.Value1), truncate(k.Value2))
 		}
 	}
@@ -137,19 +150,19 @@ func printFull(results []diff.DiffResult) error {
 				continue
 			}
 
-			f1, err := writeTmp(fmt.Sprintf("%s_%s_%s_ctx1_*.txt", r.Namespace, r.Name, k.Key), k.Value1)
+			f1, err := writeTmp(fmt.Sprintf("%s_%s_%s_ctx1_*.txt", r.Namespace1, r.Name, k.Key), k.Value1)
 			if err != nil {
 				return err
 			}
 			defer os.Remove(f1)
 
-			f2, err := writeTmp(fmt.Sprintf("%s_%s_%s_ctx2_*.txt", r.Namespace, r.Name, k.Key), k.Value2)
+			f2, err := writeTmp(fmt.Sprintf("%s_%s_%s_ctx2_*.txt", r.Namespace2, r.Name, k.Key), k.Value2)
 			if err != nil {
 				return err
 			}
 			defer os.Remove(f2)
 
-			fmt.Printf("\n=== %s/%s  key=%s ===\n", r.Namespace, r.Name, k.Key)
+			fmt.Printf("\n=== %s  key=%s ===\n", cmLabel(r), k.Key)
 			c := exec.Command(tool, f1, f2)
 			c.Stdout = os.Stdout
 			c.Stderr = os.Stderr

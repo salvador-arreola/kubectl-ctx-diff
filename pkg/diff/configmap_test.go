@@ -20,7 +20,7 @@ func TestConfigMaps_Equal(t *testing.T) {
 	c1 := fake.NewSimpleClientset(makeCM("app", "default", map[string]string{"key": "val"}))
 	c2 := fake.NewSimpleClientset(makeCM("app", "default", map[string]string{"key": "val"}))
 
-	results, err := ConfigMaps(context.Background(), c1, c2, "default")
+	results, err := ConfigMaps(context.Background(), c1, c2, "default", "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +36,7 @@ func TestConfigMaps_Modified(t *testing.T) {
 	c1 := fake.NewSimpleClientset(makeCM("app", "default", map[string]string{"key": "old"}))
 	c2 := fake.NewSimpleClientset(makeCM("app", "default", map[string]string{"key": "new"}))
 
-	results, err := ConfigMaps(context.Background(), c1, c2, "default")
+	results, err := ConfigMaps(context.Background(), c1, c2, "default", "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +53,7 @@ func TestConfigMaps_OnlyIn1(t *testing.T) {
 	c1 := fake.NewSimpleClientset(makeCM("app", "default", map[string]string{"key": "val"}))
 	c2 := fake.NewSimpleClientset(makeCM("app", "default", map[string]string{}))
 
-	results, err := ConfigMaps(context.Background(), c1, c2, "default")
+	results, err := ConfigMaps(context.Background(), c1, c2, "default", "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +66,7 @@ func TestConfigMaps_OnlyIn2(t *testing.T) {
 	c1 := fake.NewSimpleClientset(makeCM("app", "default", map[string]string{}))
 	c2 := fake.NewSimpleClientset(makeCM("app", "default", map[string]string{"key": "val"}))
 
-	results, err := ConfigMaps(context.Background(), c1, c2, "default")
+	results, err := ConfigMaps(context.Background(), c1, c2, "default", "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +79,7 @@ func TestConfigMaps_CMOnlyIn2(t *testing.T) {
 	c1 := fake.NewSimpleClientset()
 	c2 := fake.NewSimpleClientset(makeCM("app", "default", map[string]string{"key": "val"}))
 
-	results, err := ConfigMaps(context.Background(), c1, c2, "default")
+	results, err := ConfigMaps(context.Background(), c1, c2, "default", "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,7 +102,7 @@ func TestConfigMaps_MultipleKeys(t *testing.T) {
 		"a": "1", "b": "changed", "d": "4",
 	}))
 
-	results, err := ConfigMaps(context.Background(), c1, c2, "default")
+	results, err := ConfigMaps(context.Background(), c1, c2, "default", "default")
 	if err != nil {
 		t.Fatal(err)
 	}

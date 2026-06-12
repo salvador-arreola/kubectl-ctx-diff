@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -18,14 +19,15 @@ import (
 const truncateAt = 40
 
 var (
-	namespace1 string
-	namespace2 string
-	fullDiff   bool
+	namespace1   string
+	namespace2   string
+	fullDiff     bool
+	outputFormat string
 )
 
 var diffCmd = &cobra.Command{
 	Use:   "diff",
-	Short: "Diff ConfigMaps between two contexts",
+	Short: "Diff ConfigMaps, Secrets, and Deployments between two contexts",
 	RunE:  runDiff,
 }
 
@@ -34,6 +36,7 @@ func init() {
 	diffCmd.Flags().StringVarP(&namespace1, "namespace-1", "n", "default", "namespace for context-1")
 	diffCmd.Flags().StringVar(&namespace2, "namespace-2", "", "namespace for context-2 (default: same as --namespace-1)")
 	diffCmd.Flags().BoolVar(&fullDiff, "full", false, "show full values via $DIFFTOOL (default: diff)")
+	diffCmd.Flags().StringVarP(&outputFormat, "output", "o", "table", "output format: table or json")
 }
 
 func runDiff(cmd *cobra.Command, args []string) error {
@@ -72,16 +75,45 @@ func runDiff(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("context-2: %w", err)
 	}
 
-	results, err := diff.ConfigMaps(cmd.Context(), c1, c2, namespace1, namespace2)
-	if err != nil {
-		return err
-	}
+	ctx := cmd.Context()
+	var results []diff.DiffResult
 
-	if fullDiff {
-		return printFull(results)
+	cms, err := diff.ConfigMaps(ctx, c1, c2, namespace1, namespace2)
+	if err != nil {
+		return fmt.Errorf("configmaps: %w", err)
 	}
-	printTable(results)
-	return nil
+	results = append(results, cms...)
+
+	secrets, err := diff.Secrets(ctx, c1, c2, namespace1, namespace2)
+	if err != nil {
+		return fmt.Errorf("secrets: %w", err)
+	}
+	results = append(results, secrets...)
+
+	depResources, err := diff.DeploymentResources(ctx, c1, c2, namespace1, namespace2)
+	if err != nil {
+		return fmt.Errorf("deployment resources: %w", err)
+	}
+	results = append(results, depResources...)
+
+	depEnvVars, err := diff.DeploymentEnvVars(ctx, c1, c2, namespace1, namespace2)
+	if err != nil {
+		return fmt.Errorf("deployment env vars: %w", err)
+	}
+	results = append(results, depEnvVars...)
+
+	switch outputFormat {
+	case "json":
+		return printJSON(results)
+	case "table":
+		if fullDiff {
+			return printFull(results)
+		}
+		printTable(results)
+		return nil
+	default:
+		return fmt.Errorf("unknown output format %q — use table or json", outputFormat)
+	}
 }
 
 func truncate(s string) string {
@@ -92,7 +124,7 @@ func truncate(s string) string {
 	return s
 }
 
-func cmLabel(r diff.DiffResult) string {
+func resourceLabel(r diff.DiffResult) string {
 	if r.Namespace1 == r.Namespace2 {
 		return r.Namespace1 + "/" + r.Name
 	}
@@ -114,7 +146,7 @@ func printTable(results []diff.DiffResult) {
 				continue
 			}
 			if !hasDiffs {
-				fmt.Fprintln(w, "CONFIGMAP\tKEY\tSTATUS\tCONTEXT-1\tCONTEXT-2")
+				fmt.Fprintln(w, "KIND\tNAME\tKEY\tSTATUS\tCONTEXT-1\tCONTEXT-2")
 				hasDiffs = true
 			}
 			var status string
@@ -126,16 +158,38 @@ func printTable(results []diff.DiffResult) {
 			case diff.StatusModified:
 				status = modified("modified")
 			}
-			cm := cmLabel(r)
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
-				cm, k.Key, status,
-				truncate(k.Value1), truncate(k.Value2))
+			v1, v2 := truncate(k.Value1), truncate(k.Value2)
+			if k.Redacted {
+				v1, v2 = "[redacted]", "[redacted]"
+			}
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
+				r.Kind, resourceLabel(r), k.Key, status, v1, v2)
 		}
 	}
 
 	if !hasDiffs {
 		fmt.Println("No differences found.")
 	}
+}
+
+func printJSON(results []diff.DiffResult) error {
+	// exclude equal keys from JSON output
+	filtered := make([]diff.DiffResult, 0, len(results))
+	for _, r := range results {
+		var keys []diff.KeyDiff
+		for _, k := range r.Keys {
+			if k.Status != diff.StatusEqual {
+				keys = append(keys, k)
+			}
+		}
+		if len(keys) > 0 {
+			r.Keys = keys
+			filtered = append(filtered, r)
+		}
+	}
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	return enc.Encode(filtered)
 }
 
 func printFull(results []diff.DiffResult) error {
@@ -146,7 +200,7 @@ func printFull(results []diff.DiffResult) error {
 
 	for _, r := range results {
 		for _, k := range r.Keys {
-			if k.Status != diff.StatusModified {
+			if k.Status != diff.StatusModified || k.Redacted {
 				continue
 			}
 
@@ -162,7 +216,7 @@ func printFull(results []diff.DiffResult) error {
 			}
 			defer os.Remove(f2)
 
-			fmt.Printf("\n=== %s  key=%s ===\n", cmLabel(r), k.Key)
+			fmt.Printf("\n=== %s %s  key=%s ===\n", r.Kind, resourceLabel(r), k.Key)
 			c := exec.Command(tool, f1, f2)
 			c.Stdout = os.Stdout
 			c.Stderr = os.Stderr

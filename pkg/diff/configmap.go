@@ -16,13 +16,15 @@ const (
 )
 
 type KeyDiff struct {
-	Key    string
-	Value1 string
-	Value2 string
-	Status string
+	Key      string
+	Value1   string
+	Value2   string
+	Status   string
+	Redacted bool // values intentionally omitted (e.g. Secrets)
 }
 
 type DiffResult struct {
+	Kind       string
 	Name       string
 	Namespace1 string
 	Namespace2 string
@@ -48,13 +50,12 @@ func ConfigMaps(ctx context.Context, client1, client2 kubernetes.Interface, name
 	var results []DiffResult
 
 	for _, cm := range list1.Items {
-		results = append(results, diffData(cm.Name, namespace1, namespace2, cm.Data, index2[cm.Name]))
+		results = append(results, diffData("ConfigMap", cm.Name, namespace1, namespace2, cm.Data, index2[cm.Name]))
 		delete(index2, cm.Name)
 	}
 
-	// ConfigMaps present only in context-2
 	for name, data := range index2 {
-		results = append(results, diffData(name, namespace1, namespace2, nil, data))
+		results = append(results, diffData("ConfigMap", name, namespace1, namespace2, nil, data))
 	}
 
 	sort.Slice(results, func(i, j int) bool {
@@ -64,7 +65,7 @@ func ConfigMaps(ctx context.Context, client1, client2 kubernetes.Interface, name
 	return results, nil
 }
 
-func diffData(name, namespace1, namespace2 string, data1, data2 map[string]string) DiffResult {
+func diffData(kind, name, namespace1, namespace2 string, data1, data2 map[string]string) DiffResult {
 	seen := make(map[string]bool)
 	var keys []KeyDiff
 
@@ -91,5 +92,5 @@ func diffData(name, namespace1, namespace2 string, data1, data2 map[string]strin
 		return keys[i].Key < keys[j].Key
 	})
 
-	return DiffResult{Name: name, Namespace1: namespace1, Namespace2: namespace2, Keys: keys}
+	return DiffResult{Kind: kind, Name: name, Namespace1: namespace1, Namespace2: namespace2, Keys: keys}
 }

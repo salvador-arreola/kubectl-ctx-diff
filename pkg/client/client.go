@@ -10,11 +10,18 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
+func loadingRules(kubeconfig string) *clientcmd.ClientConfigLoadingRules {
+	rules := clientcmd.NewDefaultClientConfigLoadingRules()
+	if kubeconfig != "" {
+		rules.ExplicitPath = kubeconfig
+	}
+	return rules
+}
+
 // ResolveContextName returns the effective context name and validates it exists.
 // Empty name resolves to current-context.
-func ResolveContextName(name string) (string, error) {
-	rules := clientcmd.NewDefaultClientConfigLoadingRules()
-	cfg, err := rules.Load()
+func ResolveContextName(kubeconfig, name string) (string, error) {
+	cfg, err := loadingRules(kubeconfig).Load()
 	if err != nil {
 		return "", err
 	}
@@ -44,14 +51,13 @@ func ValidateNamespace(ctx context.Context, cs kubernetes.Interface, namespace s
 
 // New builds a clientset for the named kubeconfig context.
 // Empty contextName uses the current-context.
-func New(contextName string) (kubernetes.Interface, error) {
-	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
+func New(kubeconfig, contextName string) (kubernetes.Interface, error) {
 	overrides := &clientcmd.ConfigOverrides{}
 	if contextName != "" {
 		overrides.CurrentContext = contextName
 	}
 	cfg, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-		loadingRules, overrides,
+		loadingRules(kubeconfig), overrides,
 	).ClientConfig()
 	if err != nil {
 		return nil, err

@@ -49,11 +49,11 @@ func runDiff(cmd *cobra.Command, args []string) error {
 		namespace2 = namespace1
 	}
 
-	ctx1, err := client.ResolveContextName(context1)
+	ctx1, err := client.ResolveContextName(kubeconfigPath, context1)
 	if err != nil {
 		return fmt.Errorf("context-1: %w", err)
 	}
-	ctx2, err := client.ResolveContextName(context2)
+	ctx2, err := client.ResolveContextName(kubeconfigPath, context2)
 	if err != nil {
 		return fmt.Errorf("context-2: %w", err)
 	}
@@ -61,11 +61,11 @@ func runDiff(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("context-1 and context-2 resolve to the same context %q and namespace %q — must differ", ctx1, namespace1)
 	}
 
-	c1, err := client.New(ctx1)
+	c1, err := client.New(kubeconfigPath, ctx1)
 	if err != nil {
 		return fmt.Errorf("context-1: %w", err)
 	}
-	c2, err := client.New(ctx2)
+	c2, err := client.New(kubeconfigPath, ctx2)
 	if err != nil {
 		return fmt.Errorf("context-2: %w", err)
 	}

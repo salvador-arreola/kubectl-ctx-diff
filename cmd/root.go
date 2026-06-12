@@ -28,7 +28,7 @@ func Execute() {
 	// display "kubectl ctx-diff" in help instead of "kubectl-ctx-diff".
 	name := filepath.Base(os.Args[0])
 	if strings.HasPrefix(name, "kubectl-") {
-		name = "kubectl " + strings.TrimPrefix(name, "kubectl-")
+		name = "kubectl " + strings.ReplaceAll(strings.TrimPrefix(name, "kubectl-"), "_", "-")
 	}
 	rootCmd.Use = name
 

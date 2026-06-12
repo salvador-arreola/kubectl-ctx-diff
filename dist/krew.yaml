@@ -24,6 +24,11 @@ spec:
       uri: https://github.com/salvador-arreola/kubectl-ctx-diff/releases/download/v0.1.0/kubectl-ctx-diff_linux_amd64.tar.gz
       sha256: "REPLACE_WITH_SHA256"
       bin: kubectl-ctx-diff
+      files:
+        - from: kubectl-ctx-diff
+          to: .
+        - from: LICENSE
+          to: .
 
     - selector:
         matchLabels:
@@ -32,6 +37,11 @@ spec:
       uri: https://github.com/salvador-arreola/kubectl-ctx-diff/releases/download/v0.1.0/kubectl-ctx-diff_linux_arm64.tar.gz
       sha256: "REPLACE_WITH_SHA256"
       bin: kubectl-ctx-diff
+      files:
+        - from: kubectl-ctx-diff
+          to: .
+        - from: LICENSE
+          to: .
 
     - selector:
         matchLabels:
@@ -40,6 +50,11 @@ spec:
       uri: https://github.com/salvador-arreola/kubectl-ctx-diff/releases/download/v0.1.0/kubectl-ctx-diff_darwin_amd64.tar.gz
       sha256: "REPLACE_WITH_SHA256"
       bin: kubectl-ctx-diff
+      files:
+        - from: kubectl-ctx-diff
+          to: .
+        - from: LICENSE
+          to: .
 
     - selector:
         matchLabels:
@@ -48,6 +63,11 @@ spec:
       uri: https://github.com/salvador-arreola/kubectl-ctx-diff/releases/download/v0.1.0/kubectl-ctx-diff_darwin_arm64.tar.gz
       sha256: "REPLACE_WITH_SHA256"
       bin: kubectl-ctx-diff
+      files:
+        - from: kubectl-ctx-diff
+          to: .
+        - from: LICENSE
+          to: .
 
     - selector:
         matchLabels:
@@ -56,3 +76,8 @@ spec:
       uri: https://github.com/salvador-arreola/kubectl-ctx-diff/releases/download/v0.1.0/kubectl-ctx-diff_windows_amd64.zip
       sha256: "REPLACE_WITH_SHA256"
       bin: kubectl-ctx-diff.exe
+      files:
+        - from: kubectl-ctx-diff.exe
+          to: .
+        - from: LICENSE
+          to: .

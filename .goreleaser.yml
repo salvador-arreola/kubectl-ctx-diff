@@ -1,5 +1,6 @@
 version: 2
 project_name: kubectl-ctx-diff
+dist: .goreleaser-dist
 
 before:
   hooks:

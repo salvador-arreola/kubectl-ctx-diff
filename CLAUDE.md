@@ -57,6 +57,6 @@ pkg/diff/deployment.go    DeploymentResources() + DeploymentEnvVars() via contai
 
 Module: `github.com/salvador-arreola/kubectl-ctx-diff`. Go 1.26, k8s.io/client-go v0.36.x.
 
-Release: tag `vX.Y.Z` triggers `.github/workflows/release.yml` via GoReleaser. After release, update sha256 values in `dist/krew.yaml` from `checksums.txt`, then submit PR to `kubernetes-sigs/krew-index` with the manifest renamed to `ctx-diff.yaml`.
+Release: tag `vX.Y.Z` triggers `.github/workflows/release.yml` via GoReleaser. GoReleaser outputs to `.goreleaser-dist/` (not `dist/`). After release, update sha256 values in `deploy/krew.yaml` from `checksums.txt`, then submit PR to `kubernetes-sigs/krew-index` with the manifest renamed to `ctx-diff.yaml`.
 
 Version injected at build time: `-X github.com/salvador-arreola/kubectl-ctx-diff/cmd.version={{.Version}}`.

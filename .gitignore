@@ -1,0 +1,2 @@
+.goreleaser-dist/
+kubectl-ctx-diff

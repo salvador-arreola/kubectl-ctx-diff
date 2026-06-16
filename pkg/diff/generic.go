@@ -61,11 +61,16 @@ var skipPrefixes = []string{
 	"spec.clusterIPs",
 }
 
+// excludedResources are ephemeral/auto-managed resources that produce noise in diffs.
+var excludedResources = map[string]bool{
+	"events": true,
+}
+
 // AllResources discovers all namespaced resources via discovery API and diffs them.
 // Partial discovery errors (e.g. unavailable CRD groups) are ignored; available
 // resources are still diffed. Resources that fail to list are skipped silently.
 func AllResources(ctx context.Context, dyn1, dyn2 dynamic.Interface, disc discovery.DiscoveryInterface, ns1, ns2 string, filter func(string) bool) ([]DiffResult, error) {
-	gvrs, kindMap, err := discoverResources(disc)
+	gvrs, kindMap, shortNames, err := discoverResources(disc)
 	if err != nil && len(gvrs) == 0 {
 		return nil, fmt.Errorf("discover resources: %w", err)
 	}
@@ -73,7 +78,7 @@ func AllResources(ctx context.Context, dyn1, dyn2 dynamic.Interface, disc discov
 	var results []DiffResult
 	for _, gvr := range gvrs {
 		kind := kindMap[gvr.String()]
-		if !filter(gvr.Resource) && !filter(strings.ToLower(kind)) {
+		if !wantResource(filter, gvr.Resource, kind, shortNames[gvr.String()]) {
 			continue
 		}
 		res, listErr := diffGVR(ctx, dyn1, dyn2, gvr, kind, ns1, ns2)
@@ -93,12 +98,27 @@ func AllResources(ctx context.Context, dyn1, dyn2 dynamic.Interface, disc discov
 	return results, nil
 }
 
-func discoverResources(disc discovery.DiscoveryInterface) ([]schema.GroupVersionResource, map[string]string, error) {
+// wantResource reports whether a resource should be included given the filter.
+// Accepts plural name (configmaps), singular kind (configmap), or short names (cm, deploy).
+func wantResource(filter func(string) bool, resource, kind string, shortNames []string) bool {
+	if filter(resource) || filter(strings.ToLower(kind)) {
+		return true
+	}
+	for _, sn := range shortNames {
+		if filter(strings.ToLower(sn)) {
+			return true
+		}
+	}
+	return false
+}
+
+func discoverResources(disc discovery.DiscoveryInterface) ([]schema.GroupVersionResource, map[string]string, map[string][]string, error) {
 	// partial errors are common (e.g. metrics.k8s.io); carry on with what we got
 	lists, err := disc.ServerPreferredNamespacedResources()
 
 	var gvrs []schema.GroupVersionResource
 	kindMap := make(map[string]string)
+	shortNameMap := make(map[string][]string)
 
 	for _, list := range lists {
 		gv, parseErr := schema.ParseGroupVersion(list.GroupVersion)
@@ -112,13 +132,19 @@ func discoverResources(disc discovery.DiscoveryInterface) ([]schema.GroupVersion
 			if !hasVerb(r.Verbs, "list") {
 				continue
 			}
+			if excludedResources[r.Name] {
+				continue
+			}
 			gvr := gv.WithResource(r.Name)
 			gvrs = append(gvrs, gvr)
 			kindMap[gvr.String()] = r.Kind
+			if len(r.ShortNames) > 0 {
+				shortNameMap[gvr.String()] = r.ShortNames
+			}
 		}
 	}
 
-	return gvrs, kindMap, err
+	return gvrs, kindMap, shortNameMap, err
 }
 
 func hasVerb(verbs metav1.Verbs, verb string) bool {

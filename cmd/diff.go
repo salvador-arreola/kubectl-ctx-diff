@@ -158,14 +158,17 @@ func printTable(results []diff.DiffResult) {
 				fmt.Fprintln(w, "KIND\tNAME\tKEY\tSTATUS\tCONTEXT-1\tCONTEXT-2")
 				hasDiffs = true
 			}
+			// Pad plain text to fixed width before coloring so tabwriter byte
+			// widths are consistent (ANSI codes are same length per color func).
+			const statusWidth = 9
 			var status string
 			switch k.Status {
 			case diff.StatusOnlyIn1:
-				status = removed("only-in-1")
+				status = removed(fmt.Sprintf("%-*s", statusWidth, "only-in-1"))
 			case diff.StatusOnlyIn2:
-				status = added("only-in-2")
+				status = added(fmt.Sprintf("%-*s", statusWidth, "only-in-2"))
 			case diff.StatusModified:
-				status = modified("modified")
+				status = modified(fmt.Sprintf("%-*s", statusWidth, "modified"))
 			}
 			v1, v2 := truncate(k.Value1), truncate(k.Value2)
 			if k.Redacted {

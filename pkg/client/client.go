@@ -6,7 +6,10 @@ import (
 
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
@@ -16,6 +19,16 @@ func loadingRules(kubeconfig string) *clientcmd.ClientConfigLoadingRules {
 		rules.ExplicitPath = kubeconfig
 	}
 	return rules
+}
+
+func restConfig(kubeconfig, contextName string) (*rest.Config, error) {
+	overrides := &clientcmd.ConfigOverrides{}
+	if contextName != "" {
+		overrides.CurrentContext = contextName
+	}
+	return clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+		loadingRules(kubeconfig), overrides,
+	).ClientConfig()
 }
 
 // ResolveContextName returns the effective context name and validates it exists.
@@ -49,18 +62,29 @@ func ValidateNamespace(ctx context.Context, cs kubernetes.Interface, namespace s
 	return nil
 }
 
-// New builds a clientset for the named kubeconfig context.
-// Empty contextName uses the current-context.
+// New builds a typed clientset for the named kubeconfig context.
 func New(kubeconfig, contextName string) (kubernetes.Interface, error) {
-	overrides := &clientcmd.ConfigOverrides{}
-	if contextName != "" {
-		overrides.CurrentContext = contextName
-	}
-	cfg, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-		loadingRules(kubeconfig), overrides,
-	).ClientConfig()
+	cfg, err := restConfig(kubeconfig, contextName)
 	if err != nil {
 		return nil, err
 	}
 	return kubernetes.NewForConfig(cfg)
+}
+
+// NewDynamic builds a dynamic client for the named kubeconfig context.
+func NewDynamic(kubeconfig, contextName string) (dynamic.Interface, error) {
+	cfg, err := restConfig(kubeconfig, contextName)
+	if err != nil {
+		return nil, err
+	}
+	return dynamic.NewForConfig(cfg)
+}
+
+// NewDiscovery builds a discovery client for the named kubeconfig context.
+func NewDiscovery(kubeconfig, contextName string) (discovery.DiscoveryInterface, error) {
+	cfg, err := restConfig(kubeconfig, contextName)
+	if err != nil {
+		return nil, err
+	}
+	return discovery.NewDiscoveryClientForConfig(cfg)
 }

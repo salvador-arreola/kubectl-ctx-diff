@@ -2,19 +2,18 @@
 
 A kubectl plugin that diffs Kubernetes resources between two kubeconfig contexts or namespaces side by side.
 
-Compares ConfigMaps, Secrets (keys only, values never exposed), and Deployment resource limits and env vars.
+Compares any namespaced resource - ConfigMaps, Secrets (keys only, values never exposed), Deployments, Services, CRDs, and more. Resource types are discovered automatically from the cluster.
 
 ```
-KIND        NAME                      KEY                    STATUS     CONTEXT-1     CONTEXT-2
-ConfigMap   test-ctx-diff/app-config  DB_HOST                modified   postgres-dev  postgres-prod
-ConfigMap   test-ctx-diff/app-config  FEATURE_FLAGS          only-in-1  all
-ConfigMap   test-ctx-diff/app-config  LOG_LEVEL              modified   debug         warn
-Secret      test-ctx-diff/db-creds    api-key                modified   [redacted]    [redacted]
-Secret      test-ctx-diff/db-creds    extra-key              only-in-2  [redacted]    [redacted]
-Deployment  test-ctx-diff/api-server  nginx.requests.cpu     modified   100m          500m
-Deployment  test-ctx-diff/api-server  nginx.limits.memory    modified   256Mi         1Gi
-Deployment  test-ctx-diff/api-server  nginx.ENV              modified   development   production
-Deployment  test-ctx-diff/api-server  nginx.DEBUG            only-in-1  true
+KIND        NAME                       KEY                                                          STATUS     CONTEXT-1                  CONTEXT-2
+ConfigMap   default/app-config         data.DB_HOST                                                 modified   dev-postgres.default.svc   prod-postgres.default.svc
+ConfigMap   default/app-config         data.LOG_LEVEL                                               modified   debug                      warn
+Deployment  default/api-server         spec.replicas                                                modified   1                          3
+Deployment  default/api-server         spec.template.spec.containers[0].image                       modified   myapp/api:1.2.0            myapp/api:1.5.0
+Deployment  default/api-server         spec.template.spec.containers[0].resources.limits.memory     modified   256Mi                      1Gi
+Secret      default/app-secrets        data.DB_PASSWORD                                             modified   [redacted]                 [redacted]
+Secret      default/app-secrets        data.EXTRA_TOKEN                                             only-in-2  [redacted]                 [redacted]
+Widget      default/my-widget          spec.image                                                   modified   myapp:1.0                  myapp:2.0
 ```
 
 ## Installation
@@ -60,11 +59,12 @@ kubectl ctx-diff diff \
 
 ### Filter by resource type
 
+Accepts plural names, singular names, or Kind names (case-insensitive):
+
 ```bash
 kubectl ctx-diff diff --context-2 kind-prod-cluster -n my-app --filter configmaps
-kubectl ctx-diff diff --context-2 kind-prod-cluster -n my-app --filter secrets
-kubectl ctx-diff diff --context-2 kind-prod-cluster -n my-app --filter deployments
-kubectl ctx-diff diff --context-2 kind-prod-cluster -n my-app --filter configmaps,secrets
+kubectl ctx-diff diff --context-2 kind-prod-cluster -n my-app --filter Secret
+kubectl ctx-diff diff --context-2 kind-prod-cluster -n my-app --filter configmaps,secrets,widgets
 ```
 
 ### JSON output
@@ -90,7 +90,7 @@ DIFFTOOL=vimdiff kubectl ctx-diff diff --context-2 kind-prod-cluster -n my-app -
 | `--context-2` | | (required) | Second kubeconfig context |
 | `--namespace-1` | `-n` | `default` | Namespace for context-1 |
 | `--namespace-2` | | same as namespace-1 | Namespace for context-2 |
-| `--filter` | `-f` | all | Resource types: `configmaps`, `secrets`, `deployments` |
+| `--filter` | `-f` | all | Resource types to include, e.g. `configmaps,secrets` |
 | `--output` | `-o` | `table` | Output format: `table` or `json` |
 | `--full` | | false | Show full value diffs via `$DIFFTOOL` |
 | `--kubeconfig` | | `~/.kube/config` | Path to kubeconfig file |
@@ -108,11 +108,16 @@ DIFFTOOL=vimdiff kubectl ctx-diff diff --context-2 kind-prod-cluster -n my-app -
 
 ## What gets compared
 
-| Resource | What is diffed |
+All namespaced resources are discovered automatically via the cluster's API. For each resource, all fields except cluster-assigned metadata (`uid`, `resourceVersion`, `clusterIP`, etc.) and `status` are compared.
+
+| Resource | Notes |
 |---|---|
-| ConfigMap | All keys and values |
+| ConfigMap | All `data` keys and values |
 | Secret | Key names only; values never exposed |
-| Deployment | Per-container CPU/memory requests and limits; literal env vars (`valueFrom` refs skipped) |
+| Deployment, StatefulSet, DaemonSet | Full spec including image, replicas, resources |
+| Service | Spec fields; `clusterIP` excluded (cluster-assigned) |
+| CRDs | Automatically discovered and diffed - no config needed |
+| Any other namespaced resource | Discovered and diffed automatically |
 
 ## Building from source
 

@@ -28,7 +28,7 @@ var (
 
 var diffCmd = &cobra.Command{
 	Use:   "diff",
-	Short: "Diff ConfigMaps, Secrets, and Deployments between two contexts",
+	Short: "Diff Kubernetes resources between two contexts",
 	RunE:  runDiff,
 }
 
@@ -38,7 +38,7 @@ func init() {
 	diffCmd.Flags().StringVar(&namespace2, "namespace-2", "", "namespace for context-2 (default: same as --namespace-1)")
 	diffCmd.Flags().BoolVar(&fullDiff, "full", false, "show full values via $DIFFTOOL (default: diff)")
 	diffCmd.Flags().StringVarP(&outputFormat, "output", "o", "table", "output format: table or json")
-	diffCmd.Flags().StringSliceVarP(&filter, "filter", "f", nil, "resource types to include: configmaps,secrets,deployments (default: all)")
+	diffCmd.Flags().StringSliceVarP(&filter, "filter", "f", nil, "resource types to include, e.g. configmaps,secrets (default: all)")
 }
 
 func runDiff(cmd *cobra.Command, args []string) error {
@@ -61,6 +61,7 @@ func runDiff(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("context-1 and context-2 resolve to the same context %q and namespace %q: must differ", ctx1, namespace1)
 	}
 
+	// typed clients used only for namespace validation
 	c1, err := client.New(kubeconfigPath, ctx1)
 	if err != nil {
 		return fmt.Errorf("context-1: %w", err)
@@ -70,45 +71,31 @@ func runDiff(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("context-2: %w", err)
 	}
 
-	if err := client.ValidateNamespace(cmd.Context(), c1, namespace1); err != nil {
+	ctx := cmd.Context()
+	if err := client.ValidateNamespace(ctx, c1, namespace1); err != nil {
 		return fmt.Errorf("context-1: %w", err)
 	}
-	if err := client.ValidateNamespace(cmd.Context(), c2, namespace2); err != nil {
+	if err := client.ValidateNamespace(ctx, c2, namespace2); err != nil {
 		return fmt.Errorf("context-2: %w", err)
 	}
 
-	ctx := cmd.Context()
+	dyn1, err := client.NewDynamic(kubeconfigPath, ctx1)
+	if err != nil {
+		return fmt.Errorf("context-1: %w", err)
+	}
+	dyn2, err := client.NewDynamic(kubeconfigPath, ctx2)
+	if err != nil {
+		return fmt.Errorf("context-2: %w", err)
+	}
+	disc, err := client.NewDiscovery(kubeconfigPath, ctx1)
+	if err != nil {
+		return fmt.Errorf("context-1 discovery: %w", err)
+	}
+
 	want := buildFilter(filter)
-	var results []diff.DiffResult
-
-	if want("configmaps") {
-		cms, err := diff.ConfigMaps(ctx, c1, c2, namespace1, namespace2)
-		if err != nil {
-			return fmt.Errorf("configmaps: %w", err)
-		}
-		results = append(results, cms...)
-	}
-
-	if want("secrets") {
-		secrets, err := diff.Secrets(ctx, c1, c2, namespace1, namespace2)
-		if err != nil {
-			return fmt.Errorf("secrets: %w", err)
-		}
-		results = append(results, secrets...)
-	}
-
-	if want("deployments") {
-		depResources, err := diff.DeploymentResources(ctx, c1, c2, namespace1, namespace2)
-		if err != nil {
-			return fmt.Errorf("deployment resources: %w", err)
-		}
-		results = append(results, depResources...)
-
-		depEnvVars, err := diff.DeploymentEnvVars(ctx, c1, c2, namespace1, namespace2)
-		if err != nil {
-			return fmt.Errorf("deployment env vars: %w", err)
-		}
-		results = append(results, depEnvVars...)
+	results, err := diff.AllResources(ctx, dyn1, dyn2, disc, namespace1, namespace2, want)
+	if err != nil {
+		return err
 	}
 
 	switch outputFormat {
@@ -126,7 +113,7 @@ func runDiff(cmd *cobra.Command, args []string) error {
 }
 
 // buildFilter returns a function that reports whether a resource type should run.
-// Empty filter means run all.
+// Empty filter means run all. Accepts plural resource names or Kind names (case-insensitive).
 func buildFilter(f []string) func(string) bool {
 	if len(f) == 0 {
 		return func(string) bool { return true }
@@ -150,7 +137,7 @@ func resourceLabel(r diff.DiffResult) string {
 	if r.Namespace1 == r.Namespace2 {
 		return r.Namespace1 + "/" + r.Name
 	}
-	return r.Namespace1 + "/" + r.Name + " → " + r.Namespace2 + "/" + r.Name
+	return r.Namespace1 + "/" + r.Name + " -> " + r.Namespace2 + "/" + r.Name
 }
 
 func printTable(results []diff.DiffResult) {
@@ -195,7 +182,6 @@ func printTable(results []diff.DiffResult) {
 }
 
 func printJSON(results []diff.DiffResult) error {
-	// exclude equal keys from JSON output
 	filtered := make([]diff.DiffResult, 0, len(results))
 	for _, r := range results {
 		var keys []diff.KeyDiff

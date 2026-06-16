@@ -15,22 +15,24 @@ go run . diff --context-2 <ctx> -n <ns>
 ## Architecture
 
 ```
-main.go                   entry point; imports _ "k8s.io/client-go/plugin/pkg/client/auth"
+main.go                   entry point; imports cloud provider auth; suppresses klog output
 cmd/root.go               cobra root; --context-1, --context-2, --kubeconfig persistent flags
-cmd/diff.go               diff subcommand; validation, client setup, resource fetching, output
-pkg/client/client.go      ResolveContextName, ValidateNamespace, New - all accept kubeconfig path
-pkg/diff/configmap.go     ConfigMaps() + shared DiffResult/KeyDiff types + diffData()
-pkg/diff/secret.go        Secrets() - keys only, values never populated, Redacted: true
-pkg/diff/deployment.go    DeploymentResources() + DeploymentEnvVars() via containerExtractor
+cmd/diff.go               diff subcommand; validation, client setup, AllResources call, output
+pkg/client/client.go      ResolveContextName, ValidateNamespace, New, NewDynamic, NewDiscovery
+pkg/diff/generic.go       AllResources, diffGVR, flattenObject, DiffResult/KeyDiff types
 ```
 
-**Data flow:** `cmd/diff` resolves and validates both contexts and namespaces, builds two `kubernetes.Interface` clients, calls all diff functions, aggregates `[]DiffResult`, prints table or JSON.
+**Data flow:** `cmd/diff` resolves and validates both contexts/namespaces, builds typed clients (namespace validation), dynamic clients and a discovery client (diffing), calls `diff.AllResources`, prints table or JSON.
 
-**`pkg/diff`** accepts `kubernetes.Interface` so tests use `k8s.io/client-go/kubernetes/fake` with no real cluster needed.
+**Discovery:** `AllResources` calls `disc.ServerPreferredNamespacedResources()` to enumerate all namespaced listable resources. Partial failures (e.g. metrics.k8s.io) are ignored. Resources that fail to list are skipped silently.
 
-**`DiffResult`** holds `Kind`, `Name`, `Namespace1`, `Namespace2`, `[]KeyDiff`. `KeyDiff` has `Key`, `Value1`, `Value2`, `Status`, `Redacted`. Status constants in `configmap.go`: `equal`, `modified`, `only-in-1`, `only-in-2`.
+**`pkg/diff`** uses `dynamic.Interface` so tests use `k8s.io/client-go/dynamic/fake` with no real cluster needed.
 
-**`diffData()`** in `configmap.go` is the shared key-by-key diff function used by both ConfigMaps and Deployment extractors. Secrets use `diffSecretData()` to avoid ever populating values.
+**`DiffResult`** holds `Kind`, `Name`, `Namespace1`, `Namespace2`, `[]KeyDiff`. `KeyDiff` has `Key`, `Value1`, `Value2`, `Status`, `Redacted`. Status constants: `equal`, `modified`, `only-in-1`, `only-in-2`.
+
+**`flattenObject`** walks unstructured objects recursively into dot-notation keys (`spec.containers[0].image`). Skips: `status`, `apiVersion`, `kind`, `metadata.{resourceVersion,uid,creationTimestamp,generation,managedFields,selfLink}`, `spec.clusterIP`, `spec.clusterIPs*`, `metadata.annotations["kubectl.kubernetes.io/last-applied-configuration"]`.
+
+**Secret redaction:** detected by `kind == "Secret"`. Values under `data.*` and `stringData.*` are sha256-hashed for change detection; `flatVal.redacted = true` propagates to `KeyDiff.Redacted = true`; `Value1`/`Value2` are empty strings in output.
 
 ## Key behaviors
 
@@ -39,12 +41,13 @@ pkg/diff/deployment.go    DeploymentResources() + DeploymentEnvVars() via contai
 - Same context + same namespace is rejected; same context + different namespace is allowed
 - Both contexts validated against kubeconfig before any API calls
 - Both namespaces validated against their respective clusters before diffing
-- `--filter` accepts comma-separated: `configmaps`, `secrets`, `deployments` (deployments runs both resources and env vars)
+- `--filter` accepts plural resource names (`configmaps`), singular (`configmap`), or Kind names (`ConfigMap`) - case-insensitive; default is all resources
+- CRDs discovered and diffed automatically - no code changes needed
 - Large or multiline values shown as `sha256:<8hex> [NB]` in table; full values in JSON
 - Secret values are always `[redacted]` in table; empty strings with `Redacted: true` in JSON
 - `--full` writes values to temp files and calls `$DIFFTOOL` (fallback: `diff`); skips redacted keys
 - `--output json` excludes equal keys from output
-- Help text shows `kubectl ctx-diff` when binary is invoked with `kubectl-` prefix
+- Help text shows `kubectl ctx-diff` when binary is invoked with `kubectl-` prefix (krew installs as `kubectl-ctx_diff` with underscore; code normalizes underscores to dashes)
 
 ## Code style
 

@@ -145,8 +145,22 @@ func printTable(results []diff.DiffResult) {
 	removed := color.New(color.FgRed).SprintFunc()
 	modified := color.New(color.FgYellow).SprintFunc()
 
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	defer w.Flush()
+	colorStatus := func(s string) string {
+		switch s {
+		case diff.StatusOnlyIn1:
+			return removed(s)
+		case diff.StatusOnlyIn2:
+			return added(s)
+		case diff.StatusModified:
+			return modified(s)
+		}
+		return s
+	}
+
+	// Write plain text (no ANSI) through tabwriter so byte-counting is accurate.
+	var buf strings.Builder
+	tw := tabwriter.NewWriter(&buf, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "KIND\tNAME\tKEY\tSTATUS\tCONTEXT-1\tCONTEXT-2")
 
 	hasDiffs := false
 	for _, r := range results {
@@ -154,33 +168,47 @@ func printTable(results []diff.DiffResult) {
 			if k.Status == diff.StatusEqual {
 				continue
 			}
-			if !hasDiffs {
-				fmt.Fprintln(w, "KIND\tNAME\tKEY\tSTATUS\tCONTEXT-1\tCONTEXT-2")
-				hasDiffs = true
-			}
-			// Pad plain text to fixed width before coloring so tabwriter byte
-			// widths are consistent (ANSI codes are same length per color func).
-			const statusWidth = 9
-			var status string
-			switch k.Status {
-			case diff.StatusOnlyIn1:
-				status = removed(fmt.Sprintf("%-*s", statusWidth, "only-in-1"))
-			case diff.StatusOnlyIn2:
-				status = added(fmt.Sprintf("%-*s", statusWidth, "only-in-2"))
-			case diff.StatusModified:
-				status = modified(fmt.Sprintf("%-*s", statusWidth, "modified"))
-			}
+			hasDiffs = true
 			v1, v2 := truncate(k.Value1), truncate(k.Value2)
 			if k.Redacted {
 				v1, v2 = "[redacted]", "[redacted]"
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
-				r.Kind, resourceLabel(r), k.Key, status, v1, v2)
+			fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n",
+				r.Kind, resourceLabel(r), k.Key, k.Status, v1, v2)
 		}
 	}
 
 	if !hasDiffs {
 		fmt.Println("No differences found.")
+		return
+	}
+
+	tw.Flush()
+
+	// Tabwriter aligned the output. Now inject ANSI color into the STATUS
+	// column using byte positions derived from the header line.
+	lines := strings.Split(buf.String(), "\n")
+	header := lines[0]
+	statusStart := strings.Index(header, "STATUS")
+	ctx1Start := strings.Index(header, "CONTEXT-1")
+	if statusStart < 0 || ctx1Start < 0 {
+		fmt.Print(buf.String())
+		return
+	}
+	// STATUS column occupies [statusStart, ctx1Start); trailing gap is 2 spaces.
+	statusColEnd := ctx1Start - 2
+
+	for i, line := range lines {
+		if i == 0 || len(line) <= statusStart {
+			fmt.Println(line)
+			continue
+		}
+		rawStatus := strings.TrimRight(line[statusStart:statusColEnd], " ")
+		padding := strings.Repeat(" ", statusColEnd-statusStart-len(rawStatus))
+		fmt.Print(line[:statusStart])
+		fmt.Print(colorStatus(rawStatus))
+		fmt.Print(padding)
+		fmt.Println(line[statusColEnd:])
 	}
 }
 

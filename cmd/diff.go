@@ -38,7 +38,7 @@ func init() {
 	diffCmd.Flags().StringVar(&namespace2, "namespace-2", "", "namespace for context-2 (default: same as --namespace-1)")
 	diffCmd.Flags().BoolVar(&fullDiff, "full", false, "show full values via $DIFFTOOL (default: diff)")
 	diffCmd.Flags().StringVarP(&outputFormat, "output", "o", "table", "output format: table or json")
-	diffCmd.Flags().StringSliceVarP(&filter, "filter", "f", nil, "resource types to include, e.g. configmaps,secrets (default: all)")
+	diffCmd.Flags().StringSliceVarP(&filter, "filter", "f", nil, "resource types to include, e.g. configmaps,secrets (default: all; use to opt in to excluded types like pods,replicasets)")
 }
 
 func runDiff(cmd *cobra.Command, args []string) error {
@@ -92,8 +92,7 @@ func runDiff(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("context-1 discovery: %w", err)
 	}
 
-	want := buildFilter(filter)
-	results, err := diff.AllResources(ctx, dyn1, dyn2, disc, namespace1, namespace2, want)
+	results, err := diff.AllResources(ctx, dyn1, dyn2, disc, namespace1, namespace2, filter)
 	if err != nil {
 		return err
 	}
@@ -112,18 +111,6 @@ func runDiff(cmd *cobra.Command, args []string) error {
 	}
 }
 
-// buildFilter returns a function that reports whether a resource type should run.
-// Empty filter means run all. Accepts plural resource names or Kind names (case-insensitive).
-func buildFilter(f []string) func(string) bool {
-	if len(f) == 0 {
-		return func(string) bool { return true }
-	}
-	set := make(map[string]bool, len(f))
-	for _, v := range f {
-		set[strings.ToLower(v)] = true
-	}
-	return func(kind string) bool { return set[strings.ToLower(kind)] }
-}
 
 func truncate(s string) string {
 	if strings.ContainsRune(s, '\n') || utf8.RuneCountInString(s) > truncateAt {

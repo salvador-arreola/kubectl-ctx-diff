@@ -61,15 +61,23 @@ var skipPrefixes = []string{
 	"spec.clusterIPs",
 }
 
-// excludedResources are ephemeral/auto-managed resources that produce noise in diffs.
-var excludedResources = map[string]bool{
-	"events": true,
+// excludedByDefault are resources skipped when no explicit --filter is set.
+// Users can opt in by naming them explicitly: --filter pods
+var excludedByDefault = map[string]bool{
+	"events":         true,
+	"pods":           true,
+	"replicasets":    true,
+	"endpointslices": true,
+	"endpoints":      true,
 }
 
 // AllResources discovers all namespaced resources via discovery API and diffs them.
 // Partial discovery errors (e.g. unavailable CRD groups) are ignored; available
 // resources are still diffed. Resources that fail to list are skipped silently.
-func AllResources(ctx context.Context, dyn1, dyn2 dynamic.Interface, disc discovery.DiscoveryInterface, ns1, ns2 string, filter func(string) bool) ([]DiffResult, error) {
+// When filterNames is empty, excludedByDefault resources are skipped; naming one
+// explicitly (e.g. --filter pods) bypasses the exclusion for that resource.
+func AllResources(ctx context.Context, dyn1, dyn2 dynamic.Interface, disc discovery.DiscoveryInterface, ns1, ns2 string, filterNames []string) ([]DiffResult, error) {
+	filter := buildFilter(filterNames)
 	gvrs, kindMap, shortNames, err := discoverResources(disc)
 	if err != nil && len(gvrs) == 0 {
 		return nil, fmt.Errorf("discover resources: %w", err)
@@ -78,7 +86,11 @@ func AllResources(ctx context.Context, dyn1, dyn2 dynamic.Interface, disc discov
 	var results []DiffResult
 	for _, gvr := range gvrs {
 		kind := kindMap[gvr.String()]
-		if !wantResource(filter, gvr.Resource, kind, shortNames[gvr.String()]) {
+		sns := shortNames[gvr.String()]
+		if len(filterNames) == 0 && excludedByDefault[gvr.Resource] {
+			continue
+		}
+		if !wantResource(filter, gvr.Resource, kind, sns) {
 			continue
 		}
 		res, listErr := diffGVR(ctx, dyn1, dyn2, gvr, kind, ns1, ns2)
@@ -96,6 +108,17 @@ func AllResources(ctx context.Context, dyn1, dyn2 dynamic.Interface, disc discov
 	})
 
 	return results, nil
+}
+
+func buildFilter(names []string) func(string) bool {
+	if len(names) == 0 {
+		return func(string) bool { return true }
+	}
+	set := make(map[string]bool, len(names))
+	for _, v := range names {
+		set[strings.ToLower(v)] = true
+	}
+	return func(s string) bool { return set[strings.ToLower(s)] }
 }
 
 // wantResource reports whether a resource should be included given the filter.
@@ -130,9 +153,6 @@ func discoverResources(disc discovery.DiscoveryInterface) ([]schema.GroupVersion
 				continue
 			}
 			if !hasVerb(r.Verbs, "list") {
-				continue
-			}
-			if excludedResources[r.Name] {
 				continue
 			}
 			gvr := gv.WithResource(r.Name)

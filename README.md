@@ -67,6 +67,13 @@ kubectl ctx-diff diff --context-2 kind-prod-cluster -n my-app --filter Secret
 kubectl ctx-diff diff --context-2 kind-prod-cluster -n my-app --filter configmaps,secrets,widgets
 ```
 
+Pods, ReplicaSets, Endpoints, EndpointSlices, and Events are excluded by default (auto-managed runtime state). Opt in explicitly:
+
+```bash
+kubectl ctx-diff diff --context-2 kind-prod-cluster -n my-app --filter pods
+kubectl ctx-diff diff --context-2 kind-prod-cluster -n my-app --filter pods,replicasets
+```
+
 ### JSON output
 
 ```bash

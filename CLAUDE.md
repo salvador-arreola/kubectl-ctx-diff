@@ -41,7 +41,9 @@ pkg/diff/generic.go       AllResources, diffGVR, flattenObject, DiffResult/KeyDi
 - Same context + same namespace is rejected; same context + different namespace is allowed
 - Both contexts validated against kubeconfig before any API calls
 - Both namespaces validated against their respective clusters before diffing
-- `--filter` accepts plural resource names (`configmaps`), singular (`configmap`), or Kind names (`ConfigMap`) - case-insensitive; default is all resources
+- `--filter` accepts plural resource names (`configmaps`), singular (`configmap`), or Kind names (`ConfigMap`) - case-insensitive; default is all non-excluded resources
+- Excluded by default (auto-managed runtime state): `pods`, `replicasets`, `endpoints`, `endpointslices`, `events`. Opt in via `--filter pods`. Exclusion is skipped when `len(filterNames) > 0` and the resource matches the filter.
+- `AllResources` takes `[]string` filter (not `func(string) bool`); builds filter internally; `buildFilter` lives in `generic.go`
 - CRDs discovered and diffed automatically - no code changes needed
 - Large or multiline values shown as `sha256:<8hex> [NB]` in table; full values in JSON
 - Secret values are always `[redacted]` in table; empty strings with `Redacted: true` in JSON
